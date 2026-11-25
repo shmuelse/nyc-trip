@@ -1,7 +1,7 @@
 /* Service worker: שומר את האפליקציה לשימוש גם בלי קליטה.
  * אחרי עדכון קבצים בגיט, העלו את מספר הגרסה כדי לרענן את המטמון. */
 const CACHE = 'nyc-trip-v3';
-const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'firebase-config.js', 'cloud.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
+const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'firebase-config.js', 'cloud.js', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
