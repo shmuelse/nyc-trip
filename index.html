@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101c3f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ניו יורק">
+  <meta name="robots" content="noindex, nofollow">
+  <title>ניו יורק · חנוכה תשפ״ז</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800&family=Frank+Ruhl+Libre:wght@700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">🕎</span>
+        <div>
+          <div class="brand-title" id="brandTitle">ניו יורק</div>
+          <div class="brand-sub" id="brandSub"></div>
+        </div>
+      </div>
+      <div class="clocks" id="clocks" aria-live="off"></div>
+      <button class="icon-btn" id="editToggle" aria-pressed="false" title="מצב עריכה">✏️</button>
+    </div>
+    <div class="edit-banner" id="editBanner" hidden>מצב עריכה פעיל · השינויים נשמרים במכשיר הזה <button id="editDone">סיום</button></div>
+  </header>
+
+  <main id="view" class="view" tabindex="-1"></main>
+
+  <nav class="tabbar" id="tabbar" aria-label="ניווט ראשי">
+    <button data-view="today"><span>☀️</span>היום</button>
+    <button data-view="days"><span>🗓️</span>תוכנית</button>
+    <button data-view="places"><span>📍</span>יעדים</button>
+    <button data-view="docs"><span>📄</span>מסמכים</button>
+    <button data-view="expenses"><span>💰</span>הוצאות</button>
+    <button data-view="more"><span>☰</span>עוד</button>
+  </nav>
+
+  <dialog id="modal" class="modal">
+    <form method="dialog" id="modalForm">
+      <h3 id="modalTitle"></h3>
+      <div id="modalBody"></div>
+      <div class="modal-actions" id="modalActions"></div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <input type="file" id="fileInput" multiple accept="application/pdf,image/*,.pdf,.doc,.docx,.txt" hidden>
+  <input type="file" id="importInput" accept=".json,.js,application/json,text/javascript" hidden>
+
+  <script src="firebase-config.js"></script>
+  <script src="app.js"></script>
+  <script type="module" src="cloud.js"></script>
+</body>
+</html>
