@@ -377,7 +377,7 @@
         if (!r.ok) { toast(r.status === 429 ? 'הגעתם למכסת הבקשות של נתוני הטיסות' : r.status === 401 || r.status === 403 ? 'מפתח נתוני הטיסות לא תקין או שלא נרשמתם ל־AeroDataBox' : `שגיאה בנתוני טיסה (${r.status})`); continue; }
         const arr = await r.json();
         const list = Array.isArray(arr) ? arr : [arr];
-        const pick = list.find((x) => x.departure?.airport?.iata === f.from) || list[0];
+        const pick = list.find((x) => x.departure?.airport?.iata === f.from && String(x.departure?.scheduledTime?.local || '').startsWith(date)) || list.find((x) => x.departure?.airport?.iata === f.from) || list[0];
         if (!pick) continue;
         flightLive[k] = { ts: Date.now(), data: pick };
         LS.set(K.flightLive, flightLive);
