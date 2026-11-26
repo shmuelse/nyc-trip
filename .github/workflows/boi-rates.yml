@@ -1,0 +1,26 @@
+name: Bank of Israel exchange rates
+on:
+  schedule:
+    - cron: '17 */3 * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  rates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch official rates (USD, EUR)
+        run: |
+          mkdir -p data
+          curl -fsSL -A "Mozilla/5.0 (nyc-trip rates bot)" -H "Accept: application/json" "https://boi.org.il/PublicApi/GetExchangeRates" -o /tmp/boi.json
+          head -c 400 /tmp/boi.json; echo
+          jq -e '[.exchangeRates[] | select(.key=="USD" or .key=="EUR")] | length == 2' /tmp/boi.json
+          jq '{source: "Bank of Israel", rates: [.exchangeRates[] | select(.key=="USD" or .key=="EUR") | {key, rate: .currentExchangeRate, change: .currentChange, unit, lastUpdate}]}' /tmp/boi.json > data/rates.json
+          cat data/rates.json
+      - name: Commit if changed
+        run: |
+          git config user.name "rates-bot"
+          git config user.email "rates-bot@users.noreply.github.com"
+          git add data/rates.json
+          if git diff --cached --quiet; then echo "No change"; else git commit -m "Update Bank of Israel rates" && git push; fi
