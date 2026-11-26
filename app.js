@@ -701,12 +701,13 @@
 
   /* ---------- exchange rates: Bank of Israel official rate (via GitHub Action) + market fallback ---------- */
   let fx = LS.get('nyc.fx', null); // { usd, eur, usdChg, eurChg, date, source: 'boi'|'market', ts }
-  const RATES_URL = (() => { try { return new URL('data/rates.json', document.querySelector('script[src$="app.js"]').src).href; } catch { return 'data/rates.json'; } })();
+  // the GitHub Action commits data/rates.json; raw.githubusercontent serves it right away (Pages does not rebuild on bot commits)
+  const RATES_URL = 'https://raw.githubusercontent.com/shmuelse/nyc-trip/main/data/rates.json';
   async function loadRates(force) {
     if (!force && fx && Date.now() - fx.ts < 3 * 3600e3) return applyRate();
     let next = null;
     try {
-      const r = await fetch(RATES_URL + '?h=' + Math.floor(Date.now() / 36e5), { cache: 'no-store' });
+      const r = await fetch(RATES_URL + '?h=' + Math.floor(Date.now() / 36e5));
       if (r.ok) {
         const j = await r.json();
         const g = (k) => (j.rates || []).find((x) => x.key === k);
