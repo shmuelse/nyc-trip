@@ -359,7 +359,7 @@
     if (force) return true;
     const age = now - (m.updated || 0);
     const near = now > dep - 4 * 3600e3 && now < arr + 3600e3;
-    return age > (near ? 10 : 60) * 6e4;
+    return age > (near ? 20 : 120) * 6e4; // ~65 calls per flight — fits the free 400-unit monthly plan
   }
   const fetching = new Set();
   async function refreshFlights(force, onlyKey) {
@@ -866,7 +866,7 @@
 
     // flights
     html += `<div class="section-title"><h2>✈️ טיסות</h2>${editMode ? '<button class="btn sm" data-action="edit-flights">✏️</button>' : ''}</div>${(trip.flights || []).map(flightCard).join('')}`;
-    html += `<div class="card small"><b>📡 נתוני טיסה חיים</b><div class="muted" style="margin:4px 0 8px">${secrets.aeroKey ? 'מחובר ל־AeroDataBox. הנתונים מתעדכנים אוטומטית מיממה לפני כל טיסה ועד אחרי הנחיתה, ומשותפים לכל המשפחה.' : 'כדי לראות סטטוס אמת (המראה, נחיתה משוערת, טרמינל, שער, עיכובים, גובה ומהירות) צריך מפתח חינמי של AeroDataBox מ־RapidAPI.'}</div>
+    html += `<div class="card small"><b>📡 נתוני טיסה חיים</b><div class="muted" style="margin:4px 0 8px">${secrets.aeroKey ? 'מחובר ל־AeroDataBox. הנתונים מתעדכנים אוטומטית: פעם בשעתיים מיממה לפני הטיסה, ופעם ב־20 דקות מ־4 שעות לפני ההמראה ועד אחרי הנחיתה. העדכון משותף לכל המשפחה.' : 'כדי לראות סטטוס אמת (המראה, נחיתה משוערת, טרמינל, שער, עיכובים, גובה ומהירות) צריך מפתח חינמי של AeroDataBox מ־RapidAPI.'}</div>
       ${window.Cloud && Cloud.isOwner() ? `<button class="btn sm" data-action="aero-key">${secrets.aeroKey ? 'החלפת מפתח' : 'הוספת מפתח'}</button> <a class="btn sm" href="https://rapidapi.com/aedbx-aedbx/api/aerodatabox/pricing" target="_blank" rel="noopener">הרשמה ל־AeroDataBox</a>` : ''}</div>`;
 
     // links
