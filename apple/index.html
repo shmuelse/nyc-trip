@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="ניו יורק">
+  <meta name="robots" content="noindex, nofollow">
+  <title>ניו יורק · חנוכה תשפ״ז</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="../icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../icon-192.png">
+  <link rel="stylesheet" href="apple.css">
+</head>
+<body class="ios">
+  <header class="navbar" id="navbar">
+    <div class="nav-inner">
+      <div class="nav-side"></div>
+      <div class="nav-title" id="navTitle"></div>
+      <div class="nav-side end"><button class="nav-btn" id="editToggle" aria-pressed="false">עריכה</button></div>
+    </div>
+    <!-- app.js writes into these; the iOS layout shows its own versions -->
+    <div hidden><span id="brandTitle"></span><span id="brandSub"></span><div id="clocks"></div></div>
+    <div class="edit-banner" id="editBanner" hidden><button id="editDone">סיום</button></div>
+  </header>
+
+  <main id="view" class="view" tabindex="-1"></main>
+
+  <nav class="tabbar" id="tabbar" aria-label="ניווט ראשי">
+    <button data-view="today"><svg viewBox="0 0 28 28"><circle cx="14" cy="14" r="5.2"/><path d="M14 2.8v3M14 22.2v3M2.8 14h3M22.2 14h3M6.1 6.1l2.1 2.1M19.8 19.8l2.1 2.1M6.1 21.9l2.1-2.1M19.8 8.2l2.1-2.1"/></svg>היום</button>
+    <button data-view="days"><svg viewBox="0 0 28 28"><rect x="3.5" y="5.5" width="21" height="19" rx="4"/><path d="M3.5 11h21M9 3v5M19 3v5"/><circle class="f" cx="9.5" cy="16" r="1.3"/><circle class="f" cx="14" cy="16" r="1.3"/><circle class="f" cx="18.5" cy="16" r="1.3"/><circle class="f" cx="9.5" cy="20.3" r="1.3"/><circle class="f" cx="14" cy="20.3" r="1.3"/></svg>תוכנית</button>
+    <button data-view="places"><svg viewBox="0 0 28 28"><path d="M14 25s-8-7.4-8-13.4A8 8 0 0 1 22 11.6C22 17.6 14 25 14 25z"/><circle cx="14" cy="11.6" r="3"/></svg>יעדים</button>
+    <button data-view="docs"><svg viewBox="0 0 28 28"><path d="M7.5 3.5h9l6 6v13a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2v-17a2 2 0 0 1 2-2z"/><path d="M16.5 3.5v6h6M9.5 15h9M9.5 19h9"/></svg>מסמכים</button>
+    <button data-view="expenses"><svg viewBox="0 0 28 28"><rect x="3" y="6.5" width="22" height="15" rx="3"/><path d="M3 11h22M7 17h5"/></svg>הוצאות</button>
+    <button data-view="more"><svg viewBox="0 0 28 28"><circle cx="14" cy="14" r="11"/><circle class="f" cx="8.8" cy="14" r="1.5"/><circle class="f" cx="14" cy="14" r="1.5"/><circle class="f" cx="19.2" cy="14" r="1.5"/></svg>עוד</button>
+  </nav>
+
+  <dialog id="modal" class="modal">
+    <form method="dialog" id="modalForm">
+      <span class="grabber" aria-hidden="true"></span>
+      <h3 id="modalTitle"></h3>
+      <div id="modalBody"></div>
+      <div class="modal-actions" id="modalActions"></div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <input type="file" id="fileInput" multiple accept="application/pdf,image/*,.pdf,.doc,.docx,.txt" hidden>
+  <input type="file" id="importInput" accept=".json,.js,application/json,text/javascript" hidden>
+
+  <script>window.SW_PATH = '../sw.js';</script>
+  <script src="../firebase-config.js"></script>
+  <script src="../app.js"></script>
+  <script src="ios.js"></script>
+  <script type="module" src="../cloud.js"></script>
+</body>
+</html>
