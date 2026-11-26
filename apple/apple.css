@@ -413,3 +413,31 @@ body.gated .nav-btn, body.gated .tabbar { display: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 @media print { .navbar, .tabbar, .btn { display: none !important; } }
+
+/* ---------- live flight card (Wallet / Google style) ---------- */
+.card.fcard { padding: 16px; }
+.fc-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.fc-title { font-weight: 600; font-size: 17px; }
+.fc-status { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+.fc-status.green { color: var(--green); background: rgba(52, 199, 89, .14); }
+.fc-status.orange { color: var(--orange); background: rgba(255, 149, 0, .14); }
+.fc-status.red { color: var(--red); background: rgba(255, 59, 48, .14); }
+.ft-time.green { color: var(--green); }
+.ft-time.orange { color: var(--orange); }
+.ft-time.red { color: var(--red); }
+.fc-route { display: flex; align-items: center; gap: 12px; direction: ltr; margin: 18px 0 14px; }
+.fc-route b { font-family: var(--font-d); font-size: 34px; font-weight: 600; letter-spacing: .01em; }
+.fc-line { flex: 1; height: 3px; background: var(--fill-2); border-radius: 2px; position: relative; }
+.fc-line i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--tint); border-radius: 2px; }
+.fc-plane { position: absolute; top: 50%; transform: translate(-50%, -52%); color: var(--tint); font-size: 20px; line-height: 1; background: var(--cell); padding: 0 3px; }
+.fc-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; border-top: .5px solid var(--sep); padding-top: 12px; }
+.fc-cols > div + div { border-inline-start: .5px solid var(--sep); padding-inline-start: 12px; }
+.fc-place { font-size: 13px; font-weight: 600; color: var(--label-2); margin-bottom: 6px; }
+.fc-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 6px; }
+.fc-k { font-size: 12px; color: var(--label-2); }
+.ft-time { font-family: var(--font-d); font-size: 26px; font-weight: 500; direction: ltr; text-align: right; font-variant-numeric: tabular-nums; }
+.ft-old { font-size: 13px; color: var(--label-2); text-decoration: line-through; direction: ltr; text-align: right; }
+.fc-v { font-family: var(--font-d); font-size: 24px; font-weight: 500; }
+.fc-live { margin-top: 12px; background: rgba(52, 199, 89, .12); color: var(--green); border-radius: 10px; padding: 8px 12px; font-size: 13px; }
+.fc-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 12px; border-top: .5px solid var(--sep); padding-top: 10px; font-size: 13px; }
+@media (max-width: 480px) { .fc-cols { grid-template-columns: 1fr; } .fc-cols > div + div { border: 0; padding: 12px 0 0; border-top: .5px solid var(--sep); } }
