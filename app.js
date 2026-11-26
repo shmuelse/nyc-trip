@@ -224,6 +224,7 @@
 
     // weather
     html += `<div class="section-title"><h2>מזג אוויר בניו יורק</h2><span class="small">°C</span></div><div id="wx" class="weather-strip"><div class="muted small">טוען תחזית…</div></div>`;
+    html += `<div class="section-title"><h2>מטבע</h2></div>${ratesHTML()}`;
 
     // quick waze
     const todayDay = trip.days[currentDayIndex()];
@@ -260,6 +261,7 @@
       render._cd = setInterval(tick, 1000);
     }
     loadWeather();
+    loadRates(false);
     DB.all().then((docs) => { const el = $('#docCount'); if (el) el.textContent = docs.length ? `${docs.length} מסמכים שמורים` : 'עוד לא הועלו מסמכים — לחצו להוספה'; }).catch(() => {});
   }
 
@@ -697,17 +699,66 @@
   const fmtMoney = (n, cur) => `${CUR[cur]}${(Math.round(n * 100) / 100).toLocaleString('he-IL', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
   const expTotal = (cur, list = expenses) => list.reduce((s, e) => s + toCur(+e.amount || 0, e.currency, cur), 0);
 
-  async function refreshRate() {
-    if (expSet.manual) return;
-    const today = new Date().toISOString().slice(0, 10);
-    if (expSet.rateDate === today) return;
+  /* ---------- exchange rates: Bank of Israel official rate (via GitHub Action) + market fallback ---------- */
+  let fx = LS.get('nyc.fx', null); // { usd, eur, usdChg, eurChg, date, source: 'boi'|'market', ts }
+  const RATES_URL = (() => { try { return new URL('data/rates.json', document.querySelector('script[src$="app.js"]').src).href; } catch { return 'data/rates.json'; } })();
+  async function loadRates(force) {
+    if (!force && fx && Date.now() - fx.ts < 3 * 3600e3) return applyRate();
+    let next = null;
     try {
-      const r = await fetch('https://api.frankfurter.app/latest?from=USD&to=ILS');
-      if (!r.ok) throw 0;
-      const j = await r.json();
-      if (j.rates && j.rates.ILS) { expSet.rate = j.rates.ILS; expSet.rateDate = j.date || today; saveExpSet(); if (ui.view === 'expenses') render(); }
+      const r = await fetch(RATES_URL + '?h=' + Math.floor(Date.now() / 36e5), { cache: 'no-store' });
+      if (r.ok) {
+        const j = await r.json();
+        const g = (k) => (j.rates || []).find((x) => x.key === k);
+        const u = g('USD'), e = g('EUR');
+        if (u && e) next = { usd: u.rate / (u.unit || 1), eur: e.rate / (e.unit || 1), usdChg: u.change, eurChg: e.change, date: String(u.lastUpdate || '').slice(0, 10), source: 'boi', ts: Date.now() };
+      }
     } catch {}
+    if (!next) {
+      try {
+        const r = await fetch('https://open.er-api.com/v6/latest/USD');
+        const j = await r.json();
+        if (j.rates?.ILS && j.rates?.EUR) next = { usd: j.rates.ILS, eur: j.rates.ILS / j.rates.EUR, date: new Date(j.time_last_update_unix * 1000).toISOString().slice(0, 10), source: 'market', ts: Date.now() };
+      } catch {}
+    }
+    if (next) { fx = next; LS.set('nyc.fx', fx); }
+    applyRate();
+    if (next && (ui.view === 'today' || ui.view === 'expenses')) { const el = $('#ratesCard'); if (el) el.outerHTML = ratesHTML(); }
   }
+  function applyRate() {
+    if (!fx || expSet.manual) return;
+    if (Math.abs(+expSet.rate - fx.usd) > 1e-4 || expSet.rateDate !== fx.date) { expSet.rate = +fx.usd.toFixed(4); expSet.rateDate = fx.date; LS.set(K.expSet, expSet); }
+  }
+  const refreshRate = () => loadRates(false);
+  const FX_SYM = { ILS: '₪', USD: '$', EUR: '€' };
+  const toILS = (amt, c) => c === 'USD' ? amt * fx.usd : c === 'EUR' ? amt * fx.eur : amt;
+  const fromILS = (ils, c) => c === 'USD' ? ils / fx.usd : c === 'EUR' ? ils / fx.eur : ils;
+  function fxConvertHTML() {
+    const st = Object.assign({ amt: 100, cur: 'USD' }, ui.fx || {});
+    const amt = parseFloat(st.amt) || 0;
+    const ils = toILS(amt, st.cur);
+    return ['ILS', 'USD', 'EUR'].filter((c) => c !== st.cur).map((c) => `<div class="fx-out-row"><span>${FX_SYM[c]}</span><b class="ltr">${fromILS(ils, c).toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b></div>`).join('');
+  }
+  function ratesHTML() {
+    if (!fx) return '<div class="card rates" id="ratesCard"><div class="muted small">טוען שערי מטבע…</div></div>';
+    const st = Object.assign({ amt: 100, cur: 'USD' }, ui.fx || {});
+    const chg = (v) => (v == null ? '' : `<span class="fx-chg ${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${v > 0 ? '▲' : v < 0 ? '▼' : ''} ${Math.abs(v).toFixed(2)}%</span>`);
+    return `<div class="card rates" id="ratesCard">
+      <div class="fx-head"><b>💱 ${fx.source === 'boi' ? 'שער יציג' : 'שער מטבע'}</b><span class="small muted">${fx.source === 'boi' ? 'בנק ישראל' : 'שער שוק (השער היציג לא זמין)'} · ${esc(fmtDate(fx.date || nyNow().date))}</span></div>
+      <div class="fx-rates">
+        <div class="fx-rate"><span class="fx-cur">$1</span><b class="ltr">₪${fx.usd.toFixed(3)}</b>${chg(fx.usdChg)}</div>
+        <div class="fx-rate"><span class="fx-cur">€1</span><b class="ltr">₪${fx.eur.toFixed(3)}</b>${chg(fx.eurChg)}</div>
+      </div>
+      <div class="fx-conv">
+        <div class="fx-in"><input id="fxAmount" type="number" inputmode="decimal" step="any" min="0" value="${esc(st.amt)}" aria-label="סכום להמרה">
+          <div class="fx-seg" role="radiogroup">${['ILS', 'USD', 'EUR'].map((c) => `<button type="button" role="radio" aria-checked="${c === st.cur}" class="${c === st.cur ? 'on' : ''}" data-action="fx-cur" data-cur="${c}">${FX_SYM[c]}</button>`).join('')}</div></div>
+        <div class="fx-out" id="fxOut">${fxConvertHTML()}</div>
+      </div>
+    </div>`;
+  }
+  document.addEventListener('input', (e) => {
+    if (e.target.id === 'fxAmount') { ui.fx = { ...(ui.fx || { cur: 'USD' }), amt: e.target.value }; const o = $('#fxOut'); if (o && fx) o.innerHTML = fxConvertHTML(); }
+  });
 
   function renderExpenses(v) {
     const cur = expSet.show;
@@ -732,7 +783,8 @@
         <button class="btn sm" style="background:rgba(255,255,255,.15);color:#fff" data-action="exp-settings">⚙️ שער ותקציב</button>
       </div>
     </section>
-    <div class="small muted" style="margin:8px 4px 0">שער: $1 = ₪${(+expSet.rate).toFixed(3)} ${expSet.manual ? '(ידני)' : expSet.rateDate ? `(בנק אירופי, ${expSet.rateDate})` : '(ברירת מחדל — עדכנו בהגדרות)'} · ההוצאות משותפות לכל מי שקיבל גישה.</div>`;
+    <div class="small muted" style="margin:8px 4px 12px">ההמרות בחישובים: $1 = ₪${(+expSet.rate).toFixed(3)} ${expSet.manual ? '(שער ידני)' : fx?.source === 'boi' ? `(שער יציג, ${esc(fmtDate(expSet.rateDate || ''))})` : '(שער שוק)'} · ההוצאות משותפות לכל מי שקיבל גישה.</div>
+    ${ratesHTML()}`;
 
     if (byCat.length) {
       html += `<div class="section-title"><h2>לפי קטגוריה</h2></div><div class="card">${byCat.map((c) => `
@@ -1201,6 +1253,7 @@
     'exp-cur': () => { expSet.show = expSet.show === 'ILS' ? 'USD' : 'ILS'; LS.set(K.expSet, expSet); render(); },
     'exp-settings': expSettings,
     'exp-csv': exportExpCSV,
+    'fx-cur': (el) => { const a = $('#fxAmount'); ui.fx = { amt: a ? a.value : 100, cur: el.dataset.cur }; const card = $('#ratesCard'); if (card) card.outerHTML = ratesHTML(); },
     'sign-out': async () => { if (!confirm('להתנתק? הנתונים יימחקו מהמכשיר הזה (הם נשארים בענן).')) return; Object.values(K).forEach((k) => LS.del(k)); try { await Cloud.signOut(); } catch {} location.reload(); },
     'sign-in': async (el) => { el.disabled = true; try { await Cloud.signIn(); } catch (e) { toast('ההתחברות נכשלה: ' + (e.code || e.message)); el.disabled = false; } },
     'add-member': () => form({ title: 'הוספת בן משפחה', fields: [{ name: 'email', label: 'כתובת Gmail / חשבון גוגל', type: 'email', dir: 'ltr' }], onSave: (o) => {

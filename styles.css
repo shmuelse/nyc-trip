@@ -410,3 +410,26 @@ body.gated .tabbar, body.gated #editToggle { display: none; }
 .fc-live { margin-top: 10px; background: var(--green-soft); color: #145e41; border-radius: 10px; padding: 6px 10px; }
 .fc-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
 @media (max-width: 480px) { .fc-cols { grid-template-columns: 1fr; } .fc-cols > div + div { border: 0; padding: 12px 0 0; border-top: 1px solid var(--line); } }
+
+/* ---------- exchange rates + converter ---------- */
+.fx-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.fx-rates { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0; }
+.fx-rate { background: var(--paper); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; }
+.fx-cur { font-size: 13px; color: var(--muted); font-weight: 600; }
+.fx-rate b { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.fx-chg { font-size: 12px; color: var(--muted); }
+.fx-chg.up { color: var(--red); } .fx-chg.down { color: var(--green); }
+.fx-conv { border-top: 1px solid var(--line); padding-top: 10px; display: grid; gap: 8px; }
+.fx-in { display: flex; gap: 8px; }
+.fx-in input { flex: 1; min-width: 0; font: inherit; font-size: 18px; border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; direction: ltr; text-align: right; }
+.fx-seg { display: flex; background: #eef0f4; border-radius: 12px; padding: 3px; }
+.fx-seg button { border: 0; background: none; padding: 6px 14px; border-radius: 9px; font-weight: 700; font-size: 16px; }
+.fx-seg button.on { background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+.fx-out { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.fx-out-row { display: flex; justify-content: space-between; align-items: baseline; background: var(--gold-soft); border-radius: 10px; padding: 8px 12px; }
+.fx-out-row span { font-weight: 700; color: #9a6a00; }
+.fx-out-row b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.fx-conv { grid-template-columns: minmax(0, 1fr); }
+.fx-conv > *, .fx-rates > *, .fx-out > * { min-width: 0; }
+.fx-rates, .fx-out { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.fx-in input { width: 100%; }
