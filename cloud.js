@@ -80,7 +80,7 @@ const Cloud = {
     unsubs.splice(0).forEach((u) => u());
     const err = (e) => h.error && h.error(e);
     unsubs.push(onSnapshot(tripRef(), (s) => h.trip && h.trip(s.exists() ? s.data().trip : null, s.metadata.hasPendingWrites), err));
-    ['checks', 'priv', 'expSettings'].forEach((k) => unsubs.push(onSnapshot(sub('state', k), (s) => h[k] && h[k](s.exists() ? s.data().value : null), err)));
+    ['checks', 'priv', 'expSettings', 'flightLive', 'secrets'].forEach((k) => unsubs.push(onSnapshot(sub('state', k), (s) => h[k] && h[k](s.exists() ? s.data().value : null), err)));
     unsubs.push(onSnapshot(col('expenses'), (qs) => h.expenses && h.expenses(qs.docs.map((d) => d.data())), err));
     unsubs.push(onSnapshot(col('docs'), (qs) => h.docs && h.docs(qs.docs.map((d) => d.data())), err));
   },

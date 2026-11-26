@@ -16,7 +16,7 @@
     },
     del(key) { try { localStorage.removeItem(key); } catch {} }
   };
-  const K = { docs: 'nyc.docsMeta', trip: 'nyc.trip', checks: 'nyc.checks', priv: 'nyc.private', ui: 'nyc.ui', wx: 'nyc.wx', exp: 'nyc.expenses', expSet: 'nyc.expenses.settings', fx: 'nyc.fx' };
+  const K = { flightLive: 'nyc.flightLive', docs: 'nyc.docsMeta', trip: 'nyc.trip', checks: 'nyc.checks', priv: 'nyc.private', ui: 'nyc.ui', wx: 'nyc.wx', exp: 'nyc.expenses', expSet: 'nyc.expenses.settings', fx: 'nyc.fx' };
 
   const clone = (o) => JSON.parse(JSON.stringify(o));
   const EMPTY_TRIP = { title: 'ניו יורק · חנוכה תשפ״ז', subtitle: '', timezone: 'America/New_York', hanukkahFirstNight: '', home: '', flights: [], places: [], days: [], checklist: [], contacts: [], links: [] };
@@ -211,6 +211,10 @@
         <div class="hero-meta"><span class="chip gold">${trip.days.length} ימים בניו יורק</span></div></section>`;
     }
 
+    // flight in progress / about to happen — show it first
+    const activeF = (trip.flights || []).find((f) => { const m = flightModel(f); const dep = m.depBest || (m.arrBest && m.arrBest - 14 * 3600e3); const arr = m.arrBest; return dep && arr && Date.now() > dep - 6 * 3600e3 && Date.now() < arr + 2 * 3600e3; });
+    if (activeF) html += `<div class="section-title"><h2>✈️ הטיסה שלכם</h2></div>${flightCard(activeF)}`;
+
     // tonight's menorah
     const tonight = hanukkahNight(now.date) || (phase === 'before' ? 1 : 0);
     if (tonight) {
@@ -232,7 +236,7 @@
 
     // flights
     if ((trip.flights || []).length) {
-      html += `<div class="section-title"><h2>טיסות</h2></div><div class="grid-2">${trip.flights.map(flightCard).join('')}</div>`;
+      html += `<div class="section-title"><h2>טיסות</h2></div>${trip.flights.map(flightCard).join('')}`;
     }
 
     // checklist progress + docs
@@ -259,14 +263,133 @@
     DB.all().then((docs) => { const el = $('#docCount'); if (el) el.textContent = docs.length ? `${docs.length} מסמכים שמורים` : 'עוד לא הועלו מסמכים — לחצו להוספה'; }).catch(() => {});
   }
 
+  /* ---------- flights: schedule + live status (AeroDataBox) ---------- */
+  const AIRPORTS = {
+    TLV: { tz: 'Asia/Jerusalem', city: 'תל אביב' }, JFK: { tz: 'America/New_York', city: 'ניו יורק' },
+    EWR: { tz: 'America/New_York', city: 'ניוארק' }, LGA: { tz: 'America/New_York', city: 'ניו יורק' }
+  };
+  const apt = (c) => AIRPORTS[c] || { tz: TZ(), city: c };
+  let flightLive = LS.get(K.flightLive, {});
+  let secrets = {};
+  const fKey = (f) => `${f.code}_${f.departDate || f.date}`.replace(/\s/g, '');
+  const parseUtc = (s) => (s ? Date.parse(String(s).replace(' ', 'T').replace(/Z?$/, 'Z')) : null);
+  const tFmt = (ms, tz) => new Intl.DateTimeFormat('he-IL', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(ms);
+  const dFmt = (ms, tz) => new Intl.DateTimeFormat('he-IL', { timeZone: tz, weekday: 'short', day: 'numeric', month: 'short' }).format(ms);
+  const STATUS_HE = { Expected: 'מתוכננת', CheckIn: 'צ׳ק־אין', Boarding: 'עלייה למטוס', GateClosed: 'השער נסגר', Departed: 'המריאה', EnRoute: 'בטיסה', Approaching: 'לקראת נחיתה', Delayed: 'מתעכבת', Arrived: 'נחתה', Canceled: 'בוטלה', CanceledUncertain: 'ייתכן שבוטלה', Diverted: 'הוסטה' };
+
+  function flightModel(f) {
+    const live = flightLive[fKey(f)]?.data || null;
+    const ld = live?.departure || {}, la = live?.arrival || {};
+    const depSched = parseUtc(ld.scheduledTime?.utc) || (f.depart ? zonedEpoch(f.departDate || f.date, f.depart, apt(f.from).tz) : null);
+    const arrSched = parseUtc(la.scheduledTime?.utc) || (f.arrive ? zonedEpoch(f.arriveDate || f.date, f.arrive, apt(f.to).tz) : null);
+    const depBest = parseUtc(ld.revisedTime?.utc) || parseUtc(ld.runwayTime?.utc) || depSched;
+    const arrBest = parseUtc(la.revisedTime?.utc) || parseUtc(la.predictedTime?.utc) || parseUtc(la.runwayTime?.utc) || arrSched;
+    const now = Date.now();
+    let state = 'scheduled';
+    if (depBest && now >= depBest) state = 'air';
+    if (arrBest && now >= arrBest) state = 'landed';
+    if (live?.status === 'Canceled') state = 'canceled';
+    const progress = depBest && arrBest ? Math.min(1, Math.max(0, (now - depBest) / (arrBest - depBest))) : (state === 'landed' ? 1 : 0);
+    const delayMin = depSched && depBest ? Math.round((depBest - depSched) / 6e4) : 0;
+    const arrDelay = arrSched && arrBest ? Math.round((arrBest - arrSched) / 6e4) : 0;
+    let label = live?.status ? (STATUS_HE[live.status] || live.status) : { scheduled: 'לפי לוח הזמנים', air: 'בטיסה (לפי לוח הזמנים)', landed: 'נחתה (לפי לוח הזמנים)', canceled: 'בוטלה' }[state];
+    let tone = 'green';
+    if (state === 'canceled' || live?.status === 'Diverted') tone = 'red';
+    else if (Math.max(delayMin, arrDelay) >= 15 || live?.status === 'Delayed') { tone = 'orange'; if (!/מתעכבת/.test(label)) label += ` · באיחור ${Math.max(delayMin, arrDelay)} דק׳`; }
+    else if (live && ['Expected', 'CheckIn', 'Boarding', 'GateClosed'].includes(live.status)) label += ' · בזמן';
+    return { f, live, ld, la, depSched, arrSched, depBest, arrBest, state, progress, tone, label, updated: flightLive[fKey(f)]?.ts || null };
+  }
+
   function flightCard(f) {
-    return `<div class="card flight">
-      <div><div class="code ltr">${esc(f.from)}</div><small>${f.depart ? esc(f.depart) : '&nbsp;'}</small></div>
-      <div><div class="plane">✈️</div><div style="font-weight:800" class="ltr">${esc(f.code)}</div><small>${esc(f.airline || '')} · ${fmtDate(f.date)}</small></div>
-      <div><div class="code ltr">${esc(f.to)}</div><small>${f.arrive ? esc(f.arrive) + (f.arriveDate && f.arriveDate !== f.date ? ` (${fmtDate(f.arriveDate)})` : '') : '&nbsp;'}</small></div>
-      ${f.note ? `<div class="small muted" style="grid-column:1/-1">${esc(f.note)}</div>` : ''}
+    const m = flightModel(f);
+    const o = apt(f.from), d = apt(f.to);
+    const timeCell = (best, sched, tz, kind) => {
+      if (!best) return `<div class="ft-time muted">—</div>`;
+      const changed = sched && Math.abs(best - sched) >= 6e4;
+      return `<div class="ft-time ${m.tone}">${tFmt(best, tz)}</div>${changed ? `<div class="ft-old">${tFmt(sched, tz)}</div>` : ''}`;
+    };
+    const depLbl = m.state === 'scheduled' ? 'המראה מתוכננת' : 'המריאה';
+    const arrLbl = m.state === 'landed' ? 'נחתה' : 'נחיתה משוערת';
+    const loc = m.live?.location;
+    const ago = m.updated ? Math.max(0, Math.round((Date.now() - m.updated) / 6e4)) : null;
+    const q = encodeURIComponent(`${f.code} flight status`);
+    return `<div class="card fcard" data-flight="${esc(fKey(f))}">
+      <div class="fc-head">
+        <div><div class="fc-title"><span class="ltr">${esc(f.code)}</span> · ${esc(f.airline || '')}</div><div class="small muted">${esc(o.city)} ← ${esc(d.city)}</div></div>
+        <span class="fc-status ${m.tone}">${esc(m.label)}</span>
+      </div>
+      <div class="fc-route">
+        <b class="ltr">${esc(f.from)}</b>
+        <div class="fc-line"><i style="width:${(m.progress * 100).toFixed(1)}%"></i><span class="fc-plane" style="left:${(m.progress * 100).toFixed(1)}%">✈</span></div>
+        <b class="ltr">${esc(f.to)}</b>
+      </div>
+      <div class="fc-cols">
+        <div>
+          <div class="fc-place">${esc(o.city)} · ${m.depBest ? dFmt(m.depBest, o.tz) : esc(fmtDate(f.departDate || f.date))}</div>
+          <div class="fc-grid"><div><div class="fc-k">${depLbl}</div>${timeCell(m.depBest, m.depSched, o.tz)}</div>
+            <div><div class="fc-k">טרמינל</div><div class="fc-v">${esc(m.ld.terminal || (f.from === 'JFK' ? (f.terminal || '').replace(/\D/g, '') : '') || '–')}</div></div>
+            <div><div class="fc-k">שער</div><div class="fc-v">${esc(m.ld.gate || '–')}</div></div></div>
+        </div>
+        <div>
+          <div class="fc-place">${esc(d.city)} · ${m.arrBest ? dFmt(m.arrBest, d.tz) : esc(fmtDate(f.arriveDate || f.date))}</div>
+          <div class="fc-grid"><div><div class="fc-k">${arrLbl}</div>${timeCell(m.arrBest, m.arrSched, d.tz)}</div>
+            <div><div class="fc-k">טרמינל</div><div class="fc-v">${esc(m.la.terminal || (f.to === 'JFK' ? (f.terminal || '').replace(/\D/g, '') : '') || '–')}</div></div>
+            <div><div class="fc-k">שער</div><div class="fc-v">${esc(m.la.gate || '–')}</div></div></div>
+        </div>
+      </div>
+      ${loc && m.state === 'air' ? `<div class="fc-live small">📡 גובה ${Math.round(loc.altitude?.feet || 0).toLocaleString('he-IL')} רגל · מהירות ${Math.round(loc.groundSpeed?.kt || 0)} קשר${m.live?.aircraft?.model ? ` · <span class="ltr">${esc(m.live.aircraft.model)}</span>` : ''}</div>` : ''}
+      ${!m.depSched ? '<div class="small muted">שעת ההמראה עדיין לא ידועה — היא תתעדכן מהנתונים החיים, או במצב עריכה.</div>' : ''}
+      <div class="fc-foot small muted">
+        <span>${m.live ? `עודכן ${ago < 1 ? 'עכשיו' : `לפני ${ago} דק׳`} · מקור: AeroDataBox` : secrets.aeroKey ? 'הנתונים החיים יופיעו כיממה לפני הטיסה' : 'לפי לוח הזמנים · חיבור לנתונים חיים בלשונית עוד'}</span>
+        <span class="btn-row">${secrets.aeroKey ? `<button class="btn sm" data-action="flight-refresh" data-k="${esc(fKey(f))}">↻</button>` : ''}<a class="btn sm" href="https://www.google.com/search?q=${q}" target="_blank" rel="noopener">Google</a><a class="btn sm" href="https://www.flightradar24.com/data/flights/${esc(f.code.toLowerCase())}" target="_blank" rel="noopener">מפה</a></span>
+      </div>
     </div>`;
   }
+
+  // window in which live data is worth fetching, and how often
+  function liveDue(f, force) {
+    if (!secrets.aeroKey) return false;
+    const m = flightModel(f);
+    const dep = m.depBest || (m.arrBest ? m.arrBest - 14 * 3600e3 : null);
+    const arr = m.arrBest || (dep ? dep + 14 * 3600e3 : null);
+    if (!dep) return false;
+    const now = Date.now();
+    if (now < dep - 30 * 3600e3 || now > arr + 3 * 3600e3) return false;
+    if (m.live && ['Arrived', 'Canceled'].includes(m.live.status) && now > arr + 3600e3) return false;
+    if (force) return true;
+    const age = now - (m.updated || 0);
+    const near = now > dep - 4 * 3600e3 && now < arr + 3600e3;
+    return age > (near ? 10 : 60) * 6e4;
+  }
+  const fetching = new Set();
+  async function refreshFlights(force, onlyKey) {
+    for (const f of trip.flights || []) {
+      const k = fKey(f);
+      if (onlyKey && k !== onlyKey) continue;
+      if (fetching.has(k) || !liveDue(f, force)) continue;
+      fetching.add(k);
+      try {
+        const date = f.departDate || f.date;
+        const r = await fetch(`https://aerodatabox.p.rapidapi.com/flights/number/${encodeURIComponent(f.code.replace(/\s/g, ''))}/${date}?withAircraftImage=false&withLocation=true`, {
+          headers: { 'X-RapidAPI-Key': secrets.aeroKey, 'X-RapidAPI-Host': 'aerodatabox.p.rapidapi.com' }
+        });
+        if (r.status === 204) { if (force) toast(`${f.code}: עוד אין נתונים לתאריך הזה`); continue; }
+        if (!r.ok) { toast(r.status === 429 ? 'הגעתם למכסת הבקשות של נתוני הטיסות' : r.status === 401 || r.status === 403 ? 'מפתח נתוני הטיסות לא תקין או שלא נרשמתם ל־AeroDataBox' : `שגיאה בנתוני טיסה (${r.status})`); continue; }
+        const arr = await r.json();
+        const list = Array.isArray(arr) ? arr : [arr];
+        const pick = list.find((x) => x.departure?.airport?.iata === f.from) || list[0];
+        if (!pick) continue;
+        flightLive[k] = { ts: Date.now(), data: pick };
+        LS.set(K.flightLive, flightLive);
+        if (cloudOn()) Cloud.saveState('flightLive', flightLive).catch(() => {});
+        if (force) toast(`${f.code} עודכנה`);
+        remoteRender();
+      } catch { if (force) toast('אין חיבור לנתוני הטיסות'); }
+      finally { fetching.delete(k); }
+    }
+  }
+  setInterval(() => { if (cloudState === 'ready' && document.visibilityState === 'visible') refreshFlights(false); }, 5 * 6e4);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && cloudState === 'ready') refreshFlights(false); });
 
   function nextUpHTML(day, now) {
     const stops = day.stops || [];
@@ -742,7 +865,9 @@
       }).join('')}</div>`;
 
     // flights
-    html += `<div class="section-title"><h2>✈️ טיסות</h2>${editMode ? '<button class="btn sm" data-action="edit-flights">✏️</button>' : ''}</div><div class="grid-2">${(trip.flights || []).map(flightCard).join('')}</div>`;
+    html += `<div class="section-title"><h2>✈️ טיסות</h2>${editMode ? '<button class="btn sm" data-action="edit-flights">✏️</button>' : ''}</div>${(trip.flights || []).map(flightCard).join('')}`;
+    html += `<div class="card small"><b>📡 נתוני טיסה חיים</b><div class="muted" style="margin:4px 0 8px">${secrets.aeroKey ? 'מחובר ל־AeroDataBox. הנתונים מתעדכנים אוטומטית מיממה לפני כל טיסה ועד אחרי הנחיתה, ומשותפים לכל המשפחה.' : 'כדי לראות סטטוס אמת (המראה, נחיתה משוערת, טרמינל, שער, עיכובים, גובה ומהירות) צריך מפתח חינמי של AeroDataBox מ־RapidAPI.'}</div>
+      ${window.Cloud && Cloud.isOwner() ? `<button class="btn sm" data-action="aero-key">${secrets.aeroKey ? 'החלפת מפתח' : 'הוספת מפתח'}</button> <a class="btn sm" href="https://rapidapi.com/aedbx-aedbx/api/aerodatabox/pricing" target="_blank" rel="noopener">הרשמה ל־AeroDataBox</a>` : ''}</div>`;
 
     // links
     html += `<div class="section-title"><h2>🔗 קישורים שימושיים</h2>${editMode ? '<button class="btn sm" data-action="edit-links">✏️</button>' : ''}</div>
@@ -768,7 +893,7 @@
         <p class="small muted" style="margin-bottom:0">הגיבוי כולל מסמכים, הוצאות ומספרי הזמנה — שמרו אותו במקום פרטי ואל תעלו אותו לגיט.</p>
       </div>
       <div class="card small"><b>📲 התקנה כאפליקציה</b><div class="muted">באייפון: שיתוף ← ״הוסף למסך הבית״. באנדרואיד: תפריט ⋮ ← ״התקנת אפליקציה״. אחרי פתיחה ראשונה התוכנית זמינה גם בלי קליטה (למשל בסבוויי).</div></div>
-      <div class="footer-note">נבנה במיוחד לטיול · חנוכה שמח 🕎<br>${document.body.classList.contains('ios') ? '<a href="../">מעבר לעיצוב הקלאסי</a>' : '<a href="apple/">מעבר לעיצוב בסגנון Apple </a>'}</div>`;
+      <div class="footer-note">נבנה במיוחד לטיול · חנוכה שמח 🕎<br>${document.body.classList.contains('ios') ? '<a href="../?design=classic">מעבר לעיצוב הקלאסי</a>' : '<a href="./?design=apple">מעבר לעיצוב בסגנון Apple</a>'}</div>`;
     v.innerHTML = html;
     drawAccess();
   }
@@ -955,8 +1080,11 @@
   function editFlights() {
     form({
       title: 'עריכת טיסות',
-      fields: [{ name: 'f', label: 'שורה לכל טיסה: קוד | חברה | מ | אל | תאריך | המראה | נחיתה | תאריך נחיתה | הערה', type: 'textarea', value: (trip.flights || []).map((f) => [f.code, f.airline, f.from, f.to, f.date, f.depart, f.arrive, f.arriveDate || '', f.note || ''].join(' | ')).join('\n') }],
-      onSave: (o) => { trip.flights = pipes(o.f, ['code', 'airline', 'from', 'to', 'date', 'depart', 'arrive', 'arriveDate', 'note']); saveTrip(); render(); }
+      fields: [{ name: 'f', label: 'שורה לכל טיסה: קוד | חברה | מ | אל | תאריך המראה | שעת המראה | תאריך נחיתה | שעת נחיתה | הערה (שעות מקומיות בכל שדה תעופה)', type: 'textarea', value: (trip.flights || []).map((f) => [f.code, f.airline, f.from, f.to, f.departDate || f.date, f.depart, f.arriveDate || f.date, f.arrive, f.note || ''].join(' | ')).join('\n') }],
+      onSave: (o) => {
+        trip.flights = pipes(o.f, ['code', 'airline', 'from', 'to', 'departDate', 'depart', 'arriveDate', 'arrive', 'note']).map((f) => ({ ...f, date: f.departDate, terminal: (trip.flights || []).find((x) => x.code === f.code)?.terminal || '' }));
+        saveTrip(); render();
+      }
     });
   }
   function editLinks() {
@@ -1060,6 +1188,11 @@
     'edit-flights': editFlights,
     'edit-links': editLinks,
     'export-trip': exportTrip,
+    'flight-refresh': (el) => refreshFlights(true, el.dataset.k),
+    'aero-key': () => form({ title: 'מפתח AeroDataBox (RapidAPI)', fields: [{ name: 'k', label: 'X-RapidAPI-Key', value: '', dir: 'ltr', placeholder: secrets.aeroKey ? 'השאירו ריק כדי למחוק' : '' }], onSave: (o) => {
+      secrets = { ...secrets, aeroKey: o.k.trim() };
+      Cloud.saveState('secrets', secrets).then(() => { toast(o.k.trim() ? 'המפתח נשמר בענן המשפחתי' : 'המפתח נמחק'); render(); refreshFlights(true); }).catch(cloudErr);
+    } }),
     'export-backup': exportBackup,
     'import': () => $('#importInput').click(),
     'add-exp': () => editExpense(null),
@@ -1139,6 +1272,8 @@
       checks: (v) => { checks = v || {}; LS.set(K.checks, checks); remoteRender(); },
       priv: (v) => { if (v) { priv = v; LS.set(K.priv, priv); remoteRender(); } },
       expSettings: (v) => { if (v) { Object.assign(expSet, v); LS.set(K.expSet, expSet); remoteRender(); } },
+      flightLive: (v) => { if (v) { flightLive = v; LS.set(K.flightLive, flightLive); remoteRender(); } },
+      secrets: (v) => { const had = !!secrets.aeroKey; secrets = v || {}; if (!had && secrets.aeroKey) setTimeout(() => refreshFlights(false), 1500); remoteRender(); },
       expenses: (list) => { expenses = list; saveExp(); remoteRender(); },
       docs: (list) => { docsMeta = list; LS.set(K.docs, docsMeta.map(({ uploadedAt, ...m }) => m)); remoteRender(); },
       error: (e) => { console.error(e); if (e.code === 'permission-denied') { cloudState = 'denied'; gate('denied', Cloud.user?.email); } }
