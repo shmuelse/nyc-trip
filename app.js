@@ -149,6 +149,7 @@
     const v = $('#view');
     v.innerHTML = '';
     (views[ui.view] || renderToday)(v);
+    window.dispatchEvent(new CustomEvent('app:rendered', { detail: { view: ui.view, edit: editMode } }));
   }
 
   function go(view, opts = {}) {
@@ -767,7 +768,7 @@
         <p class="small muted" style="margin-bottom:0">הגיבוי כולל מסמכים, הוצאות ומספרי הזמנה — שמרו אותו במקום פרטי ואל תעלו אותו לגיט.</p>
       </div>
       <div class="card small"><b>📲 התקנה כאפליקציה</b><div class="muted">באייפון: שיתוף ← ״הוסף למסך הבית״. באנדרואיד: תפריט ⋮ ← ״התקנת אפליקציה״. אחרי פתיחה ראשונה התוכנית זמינה גם בלי קליטה (למשל בסבוויי).</div></div>
-      <div class="footer-note">נבנה במיוחד לטיול · חנוכה שמח 🕎</div>`;
+      <div class="footer-note">נבנה במיוחד לטיול · חנוכה שמח 🕎<br>${document.body.classList.contains('ios') ? '<a href="../">מעבר לעיצוב הקלאסי</a>' : '<a href="apple/">מעבר לעיצוב בסגנון Apple </a>'}</div>`;
     v.innerHTML = html;
     drawAccess();
   }
@@ -1116,6 +1117,7 @@
       error: `<p>לא הצלחנו להתחבר לשרת.</p><p class="small muted ltr">${esc(email || '')}</p><button class="btn primary" onclick="location.reload()">נסו שוב</button>`
     }[kind];
     $('#view').innerHTML = `<div class="gate"><div class="gate-mark">🕎</div><h1>${esc(trip.title || 'ניו יורק · חנוכה')}</h1>${msg}</div>`;
+    window.dispatchEvent(new CustomEvent('app:rendered', { detail: { view: 'gate', edit: false } }));
   }
 
   let pendingRender = false;
@@ -1166,6 +1168,6 @@
   }, 9000);
 
   if ('serviceWorker' in navigator && location.protocol === 'https:' && /github\.io$|localhost/.test(location.hostname)) {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+    navigator.serviceWorker.register(window.SW_PATH || 'sw.js', window.SW_PATH ? { scope: '../' } : undefined).catch(() => {});
   }
 })();
